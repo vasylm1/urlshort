@@ -1,6 +1,6 @@
 FROM php:8.2-apache
 
-# Install required system packages and PHP extensions
+# Install required libraries and PostgreSQL headers
 RUN apt-get update && apt-get install -y \
     unzip git libpng-dev libjpeg-dev libfreetype6-dev libpq-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
@@ -9,17 +9,16 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /var/www/html
 
-# Clone YOURLS repo and remove default config (we use our own)
+# Clone YOURLS from GitHub
 RUN git clone https://github.com/YOURLS/YOURLS /tmp/yourls && \
     cp -r /tmp/yourls/* . && \
     rm -f user/config.php
 
-# Copy your custom config with PostgreSQL settings
+# Copy your working custom PostgreSQL config
 COPY user/config.php user/config.php
 
-# Permissions
+# Set correct permissions
 RUN chmod -R 755 .
 
-# Apache runs here
 EXPOSE 80
 CMD ["apache2-foreground"]
