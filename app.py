@@ -1,5 +1,5 @@
 import os
-PORT = int(os.environ.get('PORT', 8501))  # Gets Render's assigned port
+PORT = int(os.environ.get('PORT', 10000))  # Gets Render's assigned port
 import streamlit as st
 from database import init_db, add_url, get_url, get_analytics
 from utils import generate_short_code, generate_qr_code, is_valid_url
