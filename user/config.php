@@ -25,4 +25,4 @@ define( 'YOURLS_DB_HOST', 'dpg-d04h23uuk2gs73bgtqd0-a' );
 define( 'YOURLS_DB_DRIVER', 'pgsql' ); // ✅ PostgreSQL driver
 define( 'YOURLS_DB_PREFIX', 'yourls_' );
 
-define( 'YOURLS_DEBUG', false );
+define( 'YOURLS_DEBUG', true );
