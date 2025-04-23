@@ -8,7 +8,7 @@ define( 'YOURLS_LANG', '' );
 
 // ** Users and Passwords **
 $yourls_user_passwords = array(
-  'admin' => 'yourpassword' // Replace with secure one
+  'admin' => 'password' // Replace with secure one
 );
 
 // ** URL shortening settings **
