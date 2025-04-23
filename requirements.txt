@@ -4,3 +4,5 @@ shortuuid==1.0.11
 python-dotenv==0.21.0
 validators==0.20.0
 sqlite3==2.6.0  # Usually included in Python
+gunicorn==20.1.0
+psycopg2-binary==2.9.6  # For PostgreSQL if needed
