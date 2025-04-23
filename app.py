@@ -1,78 +1,132 @@
-
 import streamlit as st
-import sqlite3
-import string
-import random
-import qrcode
-from io import BytesIO
+from database import init_db, add_url, get_url, get_analytics
+from utils import generate_short_code, generate_qr_code, is_valid_url
 import base64
 from datetime import datetime
 
-# Connect or create database
-conn = sqlite3.connect("shortener.db", check_same_thread=False)
-c = conn.cursor()
+# Initialize database
+init_db()
 
-# Create tables
-c.execute("CREATE TABLE IF NOT EXISTS links (id INTEGER PRIMARY KEY AUTOINCREMENT, long_url TEXT, short_code TEXT, created_at TEXT)")
-c.execute("CREATE TABLE IF NOT EXISTS clicks (id INTEGER PRIMARY KEY AUTOINCREMENT, short_code TEXT, source TEXT, timestamp TEXT)")
-conn.commit()
-
-# Generate unique short code
-def generate_code(length=6):
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
-
-# Store shortened URL
-def shorten_url(long_url):
-    code = generate_code()
-    c.execute("INSERT INTO links (long_url, short_code, created_at) VALUES (?, ?, ?)", (long_url, code, datetime.utcnow().isoformat()))
-    conn.commit()
-    return code
-
-# QR Code generator
-def generate_qr(url):
-    img = qrcode.make(url)
-    buf = BytesIO()
-    img.save(buf)
-    byte_im = buf.getvalue()
-    b64 = base64.b64encode(byte_im).decode()
-    return f"data:image/png;base64,{b64}"
-
-# UI
+# Custom CSS for gradients
 st.markdown("""
     <style>
-    .main {
-        background: linear-gradient(to right, #8360c3, #2ebf91);
-        padding: 20px;
-        border-radius: 10px;
+    .gradient-text {
+        background: linear-gradient(45deg, #6e48aa, #9d50bb);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        font-size: 3em !important;
+        font-weight: bold !important;
     }
-    .stApp {
-        background-color: #f9f9f9;
+    .gradient-box {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
     }
     </style>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-st.title("🔗 URL Shortener + QR Generator + Tracker")
+# App layout
+st.markdown('<p class="gradient-text">URL Shorty</p>', unsafe_allow_html=True)
+st.caption("Shorten, track, and analyze your links")
 
-st.subheader("1. Shorten a URL")
-url_input = st.text_input("Enter a long URL")
-if st.button("Shorten"):
-    if url_input:
-        short_code = shorten_url(url_input)
-        short_url = f"https://your-domain.onrender.com/{short_code}"
-        st.success(f"Short URL: {short_url}")
-        st.image(generate_qr(short_url), caption="Scan QR")
+# Main functionality
+tab1, tab2, tab3 = st.tabs(["🔗 Shorten URL", "📊 Analytics", "⚙️ Redirect Logic"])
 
-st.subheader("2. Tracking Dashboard")
-c.execute("SELECT short_code, COUNT(*) FROM clicks GROUP BY short_code")
-click_data = c.fetchall()
-if click_data:
-    st.write("🔍 Clicks by Short Code")
-    for code, count in click_data:
-        st.write(f"{code} → {count} clicks")
+with tab1:
+    with st.container():
+        st.markdown('<div class="gradient-box">', unsafe_allow_html=True)
+        
+        url = st.text_input("Enter your long URL", placeholder="https://example.com/very-long-url")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            custom_code = st.text_input("Custom short code (optional)", placeholder="my-link")
+        with col2:
+            st.write("")  # Spacer
+            generate_btn = st.button("Generate Short URL")
+        
+        if generate_btn and url:
+            if not is_valid_url(url):
+                st.error("Please enter a valid URL (include http:// or https://)")
+            else:
+                short_code = custom_code if custom_code else generate_short_code()
+                try:
+                    add_url(url, short_code)
+                    short_url = f"https://your-domain.com/{short_code}"  # Change this in production
+                    
+                    st.success("URL shortened successfully!")
+                    st.code(short_url, language="markdown")
+                    
+                    # Generate QR code
+                    qr_img = generate_qr_code(short_url)
+                    st.image(qr_img, caption="Scan this QR code", width=200)
+                    
+                    # Download buttons
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.download_button(
+                            label="Download QR Code",
+                            data=qr_img,
+                            file_name=f"qr_{short_code}.png",
+                            mime="image/png"
+                        )
+                    with col2:
+                        st.write("")  # Spacer
+                except sqlite3.IntegrityError:
+                    st.error("This custom code is already taken. Please try another one.")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
 
-c.execute("SELECT short_code, source, COUNT(*) FROM clicks GROUP BY short_code, source")
-by_source = c.fetchall()
-if by_source:
-    st.write("📊 Clicks by Source")
-    for code, src, count in by_source:
-        st.write(f"{code} | {src} → {count}")
+with tab2:
+    st.header("Link Analytics")
+    short_code = st.text_input("Enter short code to view analytics", placeholder="abc123")
+    
+    if short_code:
+        analytics = get_analytics(short_code)
+        if analytics["original_url"]:
+            st.subheader(f"Analytics for: {analytics['original_url']}")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Total Clicks", analytics["total_clicks"])
+                st.write(f"Created on: {analytics['created_at']}")
+            with col2:
+                st.write("**Traffic Sources**")
+                for source, count in analytics["referrers"].items():
+                    st.write(f"- {source}: {count}")
+            
+            # Simple chart
+            if analytics["referrers"]:
+                st.bar_chart({"Clicks": analytics["referrers"]})
+        else:
+            st.warning("No analytics found for this short code")
+
+with tab3:
+    st.header("Redirect Logic (For Production)")
+    st.write("""
+    For production, you'll need to:
+    1. Deploy this with FastAPI/Flask to handle redirects
+    2. Set up a custom domain
+    3. Add redirect logic like:
+    """)
+    
+    st.code("""
+    from fastapi import FastAPI, HTTPException
+    from fastapi.responses import RedirectResponse
+    
+    app = FastAPI()
+    
+    @app.get("/{short_code}")
+    async def redirect_url(short_code: str, referrer: str = "direct"):
+        original_url = get_url(short_code)
+        if original_url:
+            record_click(short_code, referrer)
+            return RedirectResponse(url=original_url)
+        raise HTTPException(status_code=404)
+    """, language="python")
+
+# Footer
+st.markdown("---")
+st.caption("Built with Streamlit | [GitHub Repo](#)")
